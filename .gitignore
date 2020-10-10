@@ -1,0 +1,5 @@
+.history
+.DS_Store
+node_modules
+.env
+google-credentials.json
