@@ -1,7 +1,33 @@
 const Firestore = require('@google-cloud/firestore');
+const Joi = require('joi');
 
 const PROJECTID = process.env.PROJECTID;
 const COLLECTION_NAME = process.env.COLLECTION_NAME;
+
+const orderSchema = Joi.object({
+  createdAt: Joi.string().required(),
+  id: Joi.string().required(),
+  lastModifiedAt: Joi.string().required(),
+  order: Joi.object(),
+  orderId: Joi.string(),
+  resource: Joi.object().required(),
+  resourceVersion: Joi.number().required(),
+  sequenceNumber: Joi.number().required(),
+  type: Joi.string().required(),
+  version: Joi.number().required(),
+})
+  .or('order', 'orderId') // we get an order on create; orderId in other cases
+  .unknown(); // allow top level unknown keys
+
+const getValidationError = async (order) => {
+  try {
+    const value = await orderSchema.validateAsync(order);
+    return value.error !== undefined;
+  }
+  catch (err) {
+    return err.message;
+  }
+}
 
 /**
  * Background Cloud Function to be triggered by PubSub.
@@ -14,18 +40,20 @@ const COLLECTION_NAME = process.env.COLLECTION_NAME;
  *
  * @param {object} message The Cloud Pub/Sub Message object.
  * @param {object} context The event metadata.
- * @param {function} callback A callback to signal completion of the function's execution.
+ * @param {function} callback Signals completion of the function's execution.
  */
 exports.orderArchive = async (message, context, callback) => {
   const { eventId } = context || {};
   try {
-    // extract the order from the pubsub message
+    // 1. extract the order from the pubsub message
     const { data } = message || {};
     const order = JSON.parse(Buffer.from(data, 'base64').toString());
 
-    // validate the order; noop if its invalid
-    if (order) { // TODO: use joi here
+    // 2. validate the order; noop if its invalid
+    const validationError = await getValidationError(order);
+    if (!validationError) {
 
+      // 3. persist the order to firestore
       const firestore = new Firestore({ projectId: PROJECTID });
       const result = await firestore
         .collection(COLLECTION_NAME)
@@ -36,13 +64,22 @@ exports.orderArchive = async (message, context, callback) => {
       firestore.terminate();
 
     } else {
-      callback(null, 'Order Invalid'); // function successful but payload was bad
-      console.log({ message: 'orderArchive data invalid', eventId });
+      // function successful but payload was bad
+      callback(null, `Order Invalid: ${validationError}`);
+      console.log({
+        message: `orderArchive invalid: ${validationError}`,
+        order: JSON.stringify(order),
+        eventId,
+      });
     }
 
   } catch (error) {
     const { message = 'Unknown error', stack } = error;
-    console.error({ eventId, message: `orderArchive error: ${message}`, stack });
+    console.error({
+      eventId,
+      message: `orderArchive error: ${message}`,
+      stack,
+    });
     callback(error); // function unsuccessful
   }
 };

@@ -5,13 +5,14 @@
   "main": "index.js",
   "scripts": {
     "start": "functions-framework --target=orderArchive --signature-type=event",
-    "deploy": "gcloud functions deploy orderArchive --project radlyn-commercetools --region us-west3 --env-vars-file ./deployment.yaml --runtime nodejs12 --trigger-topic Orders",
+    "deploy": "gcloud functions deploy orderArchive --project PROJECTID --region us-west3 --env-vars-file ./deployment.yaml --runtime nodejs12 --trigger-topic Orders",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "John Duane",
   "license": "ISC",
   "dependencies": {
     "@google-cloud/firestore": "^4.4.0",
-    "@google-cloud/functions-framework": "^1.7.1"
+    "@google-cloud/functions-framework": "^1.7.1",
+    "joi": "^17.2.1"
   }
 }
